@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>一人暮らしタイプ診断（6つ星 + 赤青 + 5問/ページ + 進捗バー + スコアバー）</title>
+
+<style>
+  body { font-family: sans-serif; background:#f5f5f5; padding:20px; }
+  .card { background:#fff; padding:18px; margin:0 auto 16px; border-radius:10px; max-width:920px; }
+
+  .btn { padding:12px 16px; border-radius:12px; border:0; cursor:pointer; font-size:15px; }
+  .btn.primary { background:#333; color:#fff; }
+  .btn.secondary { background:#e9e9e9; color:#111; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+
+  /* ===== Intro ===== */
+  .intro-title { margin:0 0 6px; font-size:26px; letter-spacing:.3px; }
+  .intro-desc { margin:0 0 14px; color:#555; line-height:1.8; font-size:15px; }
+  .intro-badges { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 16px; }
+  .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:#f0f0f0; color:#333; font-size:13px; }
+  .intro-box { background:#fafafa; border:1px solid #eee; padding:14px; border-radius:12px; line-height:1.7; color:#444; margin-top:10px; }
+  .intro-box h3 { margin:0 0 6px; font-size:16px; }
+  .intro-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+
+  /* ===== Quiz header ===== */
+  .quiz-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-end; margin-bottom:10px; }
+  .quiz-title { margin:0; font-size:18px; }
+  .meta { color:#555; font-size:14px; }
+
+  .progress { height:10px; background:#eee; border-radius:999px; overflow:hidden; margin:10px 0 14px; }
+  .progress > div { height:100%; width:0%; background:#333; }
+
+  /* ===== Questions list (5 per page) ===== */
+  .q-list { display:flex; flex-direction:column; gap:12px; }
+  .q-item { border:1px solid #eee; border-radius:12px; padding:14px; background:#fff; }
+  .q-text { margin:0 0 12px; line-height:1.6; font-size:18px; font-weight:600; color:#222; }
+
+  /* ===== Star Likert UI (6個 / 中立なし) ===== */
+  :root{
+    --agree:#E24A4A;     /* 左(赤) */
+    --disagree:#2F6FE8;  /* 右(青) */
+  }
+
+  .likert-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+
+  .likert-label{
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:.02em;
+    white-space:nowrap;
+  }
+  .likert-label.agree{ color: var(--agree); }
+  .likert-label.disagree{ color: var(--disagree); }
+
+  .stars{
+    flex: 1 1 520px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:26px;
+    min-width: 320px;
+  }
+
+  /* ボタン（枠なし・SVGのみ） */
+  .star-btn{
+    border:0;
+    background:transparent;
+    padding:0;
+    margin:0;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+    transition: transform .08s ease;
+  }
+  .star-btn:hover{ transform: scale(1.03); }
+  .star-btn:focus{
+    outline: 2px solid rgba(0,0,0,.18);
+    outline-offset: 6px;
+    border-radius: 8px;
+  }
+
+  /* サイズ（6段階） */
+  .s1{ width:94px; height:94px; }
+  .s2{ width:78px; height:78px; }
+  .s3{ width:62px; height:62px; }
+  .s4{ width:62px; height:62px; }
+  .s5{ width:78px; height:78px; }
+  .s6{ width:94px; height:94px; }
+
+  .star-svg{
+    width:100%;
+    height:100%;
+    display:block;
+  }
+
+  /* 通常（未選択）はアウトライン薄め */
+  .star-outline{ fill: transparent; stroke-width: 6; opacity: .72; }
+  .agree .star-outline{ stroke: var(--agree); }
+  .disagree .star-outline{ stroke: var(--disagree); }
+
+  /* ✅ 選択時：濃く（塗り＆線太く） */
+  .star-btn.selected .star-outline{
+    opacity: 1;
+    stroke-width: 8;
+  }
+  .agree.selected .star-outline{ fill: rgba(226, 74, 74, 0.35); }
+  .disagree.selected .star-outline{ fill: rgba(47, 111, 232, 0.30); }
+
+  /* ✅ 選択時の影（色も強く見える） */
+  .agree.selected{ filter: drop-shadow(0 10px 18px rgba(226,74,74,0.25)); }
+  .disagree.selected{ filter: drop-shadow(0 10px 18px rgba(47,111,232,0.24)); }
+
+  .nav { display:flex; justify-content:space-between; gap:10px; margin-top:16px; }
+
+  /* ===== Result ===== */
+  #result { display:none; background:#fff; padding:20px; border-radius:10px; max-width:920px; margin:16px auto 0; }
+
+  /* ===== Score bars ===== */
+  .score-block { margin-top:18px; padding-top:6px; }
+  .score-row { margin:14px 0; }
+  .score-head { display:flex; justify-content:space-between; gap:10px; font-size:14px; color:#333; margin-bottom:8px; }
+  .score-head .labels { display:flex; justify-content:space-between; width:100%; gap:10px; }
+  .score-head .labels span:last-child { text-align:right; }
+  .bar { height:14px; background:#eee; border-radius:999px; overflow:hidden; position:relative; }
+  .bar .fill { height:100%; width:50%; background:#333; }
+  .bar .midline { position:absolute; left:50%; top:0; bottom:0; width:2px; background:rgba(0,0,0,.15); }
+  .score-foot { display:flex; justify-content:space-between; margin-top:6px; font-size:13px; color:#666; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f0f0f0; color:#333; font-size:12px; margin-left:8px; }
+</style>
+</head>
+
+<body>
+
+<div class="card" id="introCard">
+  <h1 class="intro-title" id="introTitle">一人暮らしタイプ診断</h1>
+  <p class="intro-desc" id="introDescription">
+    家賃や間取りだけで部屋を決めて、「思ってた暮らしと違う…」って感じたこと、ありませんか？
+    この診断では、あなたの普段の過ごし方・生活リズムから、無理なく暮らせる賃貸タイプを整理します。<br>
+    タイプ結果とスコアで見える化します。
+  </p>
+
+  <div class="intro-badges">
+    <span class="badge" id="badgeTime">所要時間：3〜5分</span>
+    <span class="badge" id="badgeCount">質問数：25問</span>
+  </div>
+
+  <div class="intro-box">
+    <h3 id="introBoxTitle">診断軸</h3>
+    <div id="introBoxText">
+      ・家との距離感<br>
+      ・暮らしの判断スタイル<br>
+      ・時間と住まいのスタンス<br>
+      ・エネルギーの使い方
+    </div>
+  </div>
+
+  <div class="intro-actions">
+    <button class="btn primary" id="startBtn">診断をはじめる</button>
+  </div>
+</div>
+
+<div class="card" id="quizCard" style="display:none;">
+  <div class="quiz-top">
+    <h2 class="quiz-title">一人暮らしタイプ診断</h2>
+    <div class="meta">
+      <div id="pageCounter">ページ 1 / 5</div>
+      <div id="qCounter">回答済み 0 / 25</div>
+    </div>
+  </div>
+
+  <div class="progress"><div id="progressBar"></div></div>
+
+  <div class="q-list" id="questionList"></div>
+
+  <div class="nav">
+    <button class="btn secondary" id="prevPageBtn">← 前へ</button>
+    <button class="btn primary" id="nextPageBtn">次へ →</button>
+  </div>
+
+  <div style="margin-top:10px; color:#777; font-size:13px;">
+    ※ 次へ進むには、このページの5問すべてに回答してください。
+  </div>
+</div>
+
+<div id="result"></div>
+
+<script>
+/* ===== イントロ編集 ===== */
+const introContent = {
+  title: "一人暮らしタイプ診断",
+  description: "家賃や間取りだけで部屋を決めて、「思ってた暮らしと違う…」って感じたこと、ありませんか？<br>この診断では、あなたの普段の過ごし方・生活リズムから、無理なく暮らせる賃貸タイプを整理します。<br>タイプ結果とスコアで見える化します。",
+  badges: { time: "所要時間：3〜5分", count: "質問数：25問" },
+  box: {
+    title: "診断軸",
+    text: "・ひとり時間が落ち着くか／人と過ごすと元気になるか<br>・暮らしは「効率」か「雰囲気」どっち派か<br>・定住志向か、身軽に移動したいか<br>・シンプルに整えるか、世界観で彩りたいか"
+  }
+};
+
+/* ===== 質問（25問）※質問文はそのまま ===== */
+const questions = [
+  { text: "家での暇な時間は、外出よりも家の中で過ごすことが多い。", axis: "inward" },
+  { text: "家は「活動の場」というより「回復の場」である。", axis: "inward" },
+  { text: "気分転換をしたいとき、自然と外に出たくなる。", axis: "outward" },
+  { text: "誰かと会った後、一人の時間が欲しくなる。", axis: "inward" },
+  { text: "休日は予定を入れすぎない方が落ち着く。", axis: "inward" },
+
+  { text: "人が集まる場所にいると、元気になっていると感じる。", axis: "outward" },
+  { text: "朝起きてから家を出るまでの流れは、大体決まっている。", axis: "structured" },
+  { text: "多少不便でも、雰囲気が好きな空間は許せる。", axis: "sensory" },
+  { text: "部屋の匂い・光・温度などの違いに割と気づく。", axis: "sensory" },
+  { text: "家具の配置は、理由があって決めたい。", axis: "structured" },
+
+  { text: "「なんとなく落ち着く」という感覚を大事にしている。", axis: "sensory" },
+  { text: "動線や使いやすさが悪いと、地味にストレスに感じる。", axis: "structured" },
+  { text: "引っ越しはできるだけ避け、長く住みたいと思う。", axis: "settled" },
+  { text: "引っ越しや環境の変化には、比較的抵抗がない。", axis: "mobile" },
+  { text: "物は必要最低限あれば十分だと思う。", axis: "mobile" },
+
+  { text: "インテリアに強いこだわりや完成形を求めすぎないほうだ", axis: "mobile" },
+  { text: "同じ場所で生活リズムが整うと安心する。", axis: "settled" },
+  { text: "変化のある生活の方が、自分らしいと感じる。", axis: "mobile" },
+  { text: "朝起きた時、静かな空間だと嬉しい。", axis: "contained" },
+  { text: "人と話すことで、気分がよくなることが多い。", axis: "expressive" },
+
+  { text: "自分のペースを乱されると、思った以上に疲れる。", axis: "contained" },
+  { text: "家に誰かが来ると、気分が上がる。", axis: "expressive" },
+  { text: "日常では、刺激よりも安心感を優先したい。", axis: "contained" },
+  { text: "自分の考えや好きなことを、誰かと共有したくなる。", axis: "expressive" },
+  { text: "「良い暮らし」と聞いて思い浮かべるのは、活動的な毎日。", axis: "outward/mobile/expressive" },
+];
+
+const PAGE_SIZE = 5;
+const totalQuestions = questions.length;
+const totalPages = Math.ceil(totalQuestions / PAGE_SIZE);
+
+/* =========================
+  状態（回答は 1〜6）
+  1〜3 = そう思う（弱→強）
+  4〜6 = そう思わない（弱→強）
+  ※中立なし
+========================= */
+const answers = Array(totalQuestions).fill(null);
+let currentPage = 0;
+
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function getAnsweredCount() { return answers.filter(v => v !== null).length; }
+function getPageRange(pageIndex) {
+  const start = pageIndex * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, totalQuestions);
+  return { start, end };
+}
+function isPageComplete(pageIndex) {
+  const { start, end } = getPageRange(pageIndex);
+  for (let i = start; i < end; i++) if (answers[i] === null) return false;
+  return true;
+}
+
+/* Intro内容反映 */
+function applyIntroContent() {
+  document.getElementById("introTitle").innerHTML = introContent.title;
+  document.getElementById("introDescription").innerHTML = introContent.description;
+  document.getElementById("badgeTime").textContent = introContent.badges.time;
+  document.getElementById("badgeCount").textContent = introContent.badges.count;
+  document.getElementById("introBoxTitle").innerHTML = introContent.box.title;
+  document.getElementById("introBoxText").innerHTML = introContent.box.text;
+}
+
+/* 画面切替 */
+function showIntro() {
+  document.getElementById("introCard").style.display = "block";
+  document.getElementById("quizCard").style.display = "none";
+  document.getElementById("result").style.display = "none";
+}
+function showQuiz() {
+  document.getElementById("introCard").style.display = "none";
+  document.getElementById("quizCard").style.display = "block";
+  document.getElementById("result").style.display = "none";
+  renderPage();
+}
+
+/* ===== 星形（SVG） ===== */
+function starSVG() {
+  return `
+    <svg class="star-svg" viewBox="0 0 100 100" aria-hidden="true">
+      <path class="star-outline" d="M50 6 L61 36 L93 36 L67 54 L77 86 L50 68 L23 86 L33 54 L7 36 L39 36 Z"></path>
+    </svg>
+  `;
+}
+
+/* ===== 星スケール（6個・中立なし） ===== */
+const sizeClass = ["s1","s2","s3","s4","s5","s6"];
+
+function renderStarScale(questionIndex) {
+  const row = document.createElement("div");
+  row.className = "likert-row";
+
+  const leftLabel = document.createElement("div");
+  leftLabel.className = "likert-label agree";
+  leftLabel.textContent = "そう思う";
+
+  const rightLabel = document.createElement("div");
+  rightLabel.className = "likert-label disagree";
+  rightLabel.textContent = "そう思わない";
+
+  const stars = document.createElement("div");
+  stars.className = "stars";
+  stars.setAttribute("role", "radiogroup");
+  stars.setAttribute("aria-label", "回答（左=そう思う、右=そう思わない）");
+
+  const selected = answers[questionIndex];
+
+  for (let v = 1; v <= 6; v++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+
+    const sideClass = (v <= 3) ? "agree" : "disagree";
+    btn.className = `star-btn ${sideClass} ${sizeClass[v-1]}${selected === v ? " selected" : ""}`;
+    btn.innerHTML = starSVG();
+
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", selected === v ? "true" : "false");
+
+    btn.onclick = () => {
+      answers[questionIndex] = v;
+      renderPage();
+    };
+
+    stars.appendChild(btn);
+  }
+
+  row.appendChild(leftLabel);
+  row.appendChild(stars);
+  row.appendChild(rightLabel);
+
+  return row;
+}
+
+/* ページ描画（5問） */
+function renderPage() {
+  document.getElementById("pageCounter").textContent = `ページ ${currentPage + 1} / ${totalPages}`;
+  document.getElementById("qCounter").textContent = `回答済み ${getAnsweredCount()} / ${totalQuestions}`;
+
+  const progress = Math.round((getAnsweredCount() / totalQuestions) * 100);
+  document.getElementById("progressBar").style.width = `${progress}%`;
+
+  const list = document.getElementById("questionList");
+  list.innerHTML = "";
+
+  const { start, end } = getPageRange(currentPage);
+
+  for (let i = start; i < end; i++) {
+    const q = questions[i];
+
+    const item = document.createElement("div");
+    item.className = "q-item";
+
+    const p = document.createElement("div");
+    p.className = "q-text";
+    p.textContent = `${i + 1}. ${q.text}`;
+    item.appendChild(p);
+
+    item.appendChild(renderStarScale(i));
+    list.appendChild(item);
+  }
+
+  const prevBtn = document.getElementById("prevPageBtn");
+  const nextBtn = document.getElementById("nextPageBtn");
+
+  prevBtn.disabled = currentPage === 0;
+
+  const pageDone = isPageComplete(currentPage);
+  nextBtn.disabled = !pageDone;
+  nextBtn.textContent = (currentPage === totalPages - 1) ? "結果を見る →" : "次へ →";
+}
+
+/* =========================
+  スコア計算（6段階・中立なし）
+  v(1..6) を「左寄り（そう思う）」に変換：
+    delta = 3.5 - v
+    v=1 => +2.5（強くそう思う）
+    v=3 => +0.5
+    v=4 => -0.5
+    v=6 => -2.5（強くそう思わない）
+========================= */
+function calculatePairPercent(leftKey, rightKey) {
+  let leftSum = 0, rightSum = 0;
+  let leftCount = 0, rightCount = 0;
+
+  answers.forEach((v, i) => {
+    if (v === null) return;
+    const k = questions[i].axis;
+    const delta = 3.5 - v;
+
+    if (k === leftKey) { leftSum += delta; leftCount++; }
+    if (k === rightKey) { rightSum += delta; rightCount++; }
+  });
+
+  const totalCount = leftCount + rightCount;
+  if (totalCount === 0) return { percentLeft: 50 };
+
+  const maxAbs = 2.5 * totalCount; // 6段階なので最大2.5
+  const diff = leftSum - rightSum;
+  const percentLeft = clamp(Math.round(((diff + maxAbs) / (2 * maxAbs)) * 100), 0, 100);
+  return { percentLeft };
+}
+
+function calculateAllAxisPercents() {
+  return {
+    space: calculatePairPercent("inward", "outward"),
+    judgment: calculatePairPercent("structured", "sensory"),
+    time: calculatePairPercent("settled", "mobile"),
+    energy: calculatePairPercent("contained", "expressive")
+  };
+}
+
+function getAxisResultFromPercents(p) {
+  return {
+    space: p.space.percentLeft >= 50 ? "Inward" : "Outward",
+    judgment: p.judgment.percentLeft >= 50 ? "Structured" : "Sensory",
+    time: p.time.percentLeft >= 50 ? "Settled" : "Mobile",
+    energy: p.energy.percentLeft >= 50 ? "Contained" : "Expressive"
+  };
+}
+
+function getResultType(a) {
+  const key = `${a.space}-${a.judgment}-${a.time}-${a.energy}`;
+
+  const map = {
+    "Inward-Structured-Settled-Contained": 1,
+    "Inward-Structured-Settled-Expressive": 2,
+    "Inward-Structured-Mobile-Contained": 2,
+    "Inward-Structured-Mobile-Expressive": 4,
+
+    "Inward-Sensory-Settled-Contained": 6,
+    "Inward-Sensory-Settled-Expressive": 10,
+    "Inward-Sensory-Mobile-Contained": 3,
+    "Inward-Sensory-Mobile-Expressive": 7,
+
+    "Outward-Structured-Settled-Contained": 9,
+    "Outward-Structured-Settled-Expressive": 8,
+    "Outward-Structured-Mobile-Contained": 4,
+    "Outward-Structured-Mobile-Expressive": 8,
+
+    "Outward-Sensory-Settled-Contained": 5,
+    "Outward-Sensory-Settled-Expressive": 8,
+    "Outward-Sensory-Mobile-Contained": 3,
+    "Outward-Sensory-Mobile-Expressive": 7
+  };
+
+  console.log(key);
+  return map[key] ?? 10;
+}
+
+/* ===== 結果文 ===== */
+const results = {
+  1:{title:"① コクーン型｜こもり充電タイプ → コクーンキャット",text:`あなたにとって部屋は、外の世界からいったん距離を置ける「避難所」。\n人と関わる時間が多いほど、ひとりで静かに過ごす空間が必要になります。\n余計な刺激がない部屋は、あなたの思考と感情をゆっくり整えてくれるはず。\n無理に広さや華やかさを求めなくて大丈夫。\n落ち着けること＝いい部屋です。`},
+  2:{title:"② ソロ集中型｜ワーク重視タイプ → アトリエフクロウ",text:`あなたは、空間によってパフォーマンスが大きく変わる人。\n家は休む場所であると同時に、考え、つくる場所でもあります。\nオンとオフを切り替えられる部屋は、あなたの集中力を守ってくれます。\n「静かに没頭できる場所があるか」を、何より大切にしてみてください。`},
+  3:{title:"③ ミニマル型｜身軽タイプ → 旅する渡り鳥",text:`あなたは、暮らしに“重さ”を求めていません。\n必要以上の物や条件より、身軽でいられることが安心につながるタイプ。\n部屋は、生活の中心というより、人生の途中にある拠点。\nシンプルで、変化しやすい部屋ほど、あなたのリズムに合います。`},
+  4:{title:"④ 生活合理型｜回し上手タイプ → マネジメントビーバー",text:`あなたは、暮らしを「感覚」より「回りやすさ」で見ています。\n動線、設備、立地。\n日々の小さなストレスが少ない部屋は、あなたの余裕を守ってくれます。\n生活がスムーズに回ることは、心が整うことでもあるのです。`},
+  5:{title:"⑤ セーフティ型｜安心重視タイプ → 守り亀",text:`あなたが一番大切にしているのは、安心して暮らせること。\n派手さや個性よりも、安定感が心を落ち着かせてくれます。\n「ここなら大丈夫」と思える部屋は、日常の不安を静かに減らしてくれるはず。\n守られている感覚を、遠慮なく選んでください。`},
+  6:{title:"⑥ ナチュラル型｜スローライフタイプ → こもれびスロース",text:`あなたは、暮らしの中に“呼吸できる余白”を求めています。\n光や風、時間の流れを感じられる部屋は、心を自然な位置に戻してくれます。\n効率よりも、居心地。\n急がなくていい場所が、あなたの生活を支えてくれます。`},
+  7:{title:"⑦ クリエイティブ型｜世界観重視タイプ → 世界観ビルダー",text:`あなたにとって部屋は、ただ住む場所ではありません。\n感性を映し、表現できるキャンバスです。\n少し不便でも、好きだと思える空間は、あなたのエネルギーになります。\n「この部屋で生きたい」と思えるかどうかを、大事にしてください。`},
+  8:{title:"⑧ ソーシャル型｜人が集まるタイプ → おもてなしチワワ",text:`あなたの暮らしは、人との関わりによって彩られています。\n部屋は、会話が生まれ、時間を共有する場所。\nひとりの時間も大切だけれど、誰かと過ごせる余白があると落ち着くタイプです。\n開かれた空間が、あなたらしさを引き出します。`},
+  9:{title:"⑨ ホームベース型｜長く住みたいタイプ → 拠点守りのエルダー",text:`あなたは、暮らしに「育てる感覚」を求めています。\n住むほどに愛着が増す部屋は、あなたの居場所になっていきます。\n落ち着いた環境で、長く過ごすことが心の安定につながるタイプ。\nここを拠点に、日常を積み重ねていける部屋を選んでください。`},
+  10:{title:"⑩ ムード型｜気分優先タイプ → 窓辺のパピヨン",text:`あなたは、理屈よりも直感を信じる人。\n部屋を見た瞬間の「なんか好き」が、何より大事です。\n光の入り方、眺め、空気感。\n気分が整う空間は、あなたの毎日を静かに持ち上げてくれます。`}
+};
+
+/* ===== スコアバー ===== */
+function scoreBarRow(title, leftLabel, rightLabel, percentLeft) {
+  const dominant = (percentLeft >= 50) ? leftLabel : rightLabel;
+  const dominantPercent = (percentLeft >= 50) ? percentLeft : (100 - percentLeft);
+  return `
+    <div class="score-row">
+      <div class="score-head">
+        <div style="min-width:110px; font-weight:600;">${title}</div>
+        <div class="labels">
+          <span>${leftLabel}</span>
+          <span>${rightLabel}</span>
+        </div>
+      </div>
+      <div class="bar">
+        <div class="midline"></div>
+        <div class="fill" style="width:${percentLeft}%;"></div>
+      </div>
+      <div class="score-foot">
+        <div>左寄り：${percentLeft}%</div>
+        <div><strong>${dominant}</strong> 寄り <span class="pill">${dominantPercent}%</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function showResult() {
+  if (answers.includes(null)) { alert("すべての質問に回答してください"); return; }
+
+  const p = calculateAllAxisPercents();
+  const axis = getAxisResultFromPercents(p);
+  const type = getResultType(axis);
+  const r = results[type];
+
+  document.getElementById("quizCard").style.display = "none";
+  const resultDiv = document.getElementById("result");
+  resultDiv.style.display = "block";
+
+  const barsHtml = `
+    <div class="score-block">
+      <h3 style="margin:0 0 10px;">あなたのスコア（横棒）</h3>
+      ${scoreBarRow("空間の傾向", "Inward", "Outward", p.space.percentLeft)}
+      ${scoreBarRow("判断の傾向", "Structured", "Sensory", p.judgment.percentLeft)}
+      ${scoreBarRow("時間の傾向", "Settled", "Mobile", p.time.percentLeft)}
+      ${scoreBarRow("エネルギー傾向", "Contained", "Expressive", p.energy.percentLeft)}
+    </div>
+  `;
+
+  resultDiv.innerHTML = `
+    <h2 style="margin-top:0;">${r.title}</h2>
+    <p style="line-height:1.8;">${r.text.replace(/\n/g,"<br>")}</p>
+    <hr style="margin:18px 0;">
+    ${barsHtml}
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+      <button class="btn secondary" onclick="restartToIntro()">イントロに戻る</button>
+      <button class="btn primary" onclick="restartToQuiz()">もう一度診断する</button>
+    </div>
+  `;
+}
+
+/* リスタート */
+function resetAnswers() {
+  for (let i = 0; i < answers.length; i++) answers[i] = null;
+  currentPage = 0;
+}
+function restartToIntro() { resetAnswers(); showIntro(); }
+function restartToQuiz() { resetAnswers(); showQuiz(); }
+
+/* ページ移動 */
+document.getElementById("prevPageBtn").onclick = () => {
+  if (currentPage > 0) { currentPage--; renderPage(); }
+};
+document.getElementById("nextPageBtn").onclick = () => {
+  if (!isPageComplete(currentPage)) return;
+  if (currentPage < totalPages - 1) { currentPage++; renderPage(); return; }
+  showResult();
+};
+
+/* Introボタン */
+document.getElementById("startBtn").onclick = () => showQuiz();
+
+/* 初期表示 */
+applyIntroContent();
+showIntro();
+</script>
+
+</body>
+</html>
